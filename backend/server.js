@@ -33,3 +33,14 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
+app.get('/db-status', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query('SELECT NOW()');
+    client.release();
+    res.send(`<h1>Database Connected ✅</h1><p>Time: ${result.rows[0].now}</p>`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("<h1>Database Connection Failed ❌</h1>");
+  }
+});
