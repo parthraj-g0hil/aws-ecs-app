@@ -1,5 +1,8 @@
 FROM 644951122123.dkr.ecr.ap-south-1.amazonaws.com/aws-ecs-app:baseimage
 
+# Install dependencies for EJS
+RUN apt-get update && apt-get install -y python3 make g++
+
 # Set working directory
 WORKDIR /app
 

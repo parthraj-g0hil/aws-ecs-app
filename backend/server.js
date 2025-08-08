@@ -1,59 +1,170 @@
 const express = require("express");
 const { Pool } = require("pg");
-const fs = require('fs');
 const path = require('path');
+const winston = require('winston');
+const CloudWatchTransport = require('winston-cloudwatch');
+
+// Initialize Winston logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new CloudWatchTransport({
+      logGroupName: process.env.CLOUDWATCH_LOG_GROUP || 'ECS-App-Logs',
+      logStreamName: process.env.CLOUDWATCH_LOG_STREAM || 'app',
+      awsRegion: process.env.AWS_REGION || 'ap-south-1',
+      jsonMessage: true,
+      retentionInDays: 14
+    })
+  ]
+});
+
+// Add correlation ID to all logs
+logger.addCorrelationId = function(correlationId) {
+  return this.child({ correlationId });
+};
 
 const app = express();
 
-// Enhanced DB Configuration Logging
-console.log("DB Configuration:", {
+// Log all incoming requests
+app.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] || 
+                       Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  req.logger = logger.addCorrelationId(correlationId);
+  
+  req.logger.info('Request received', {
+    method: req.method,
+    url: req.originalUrl,
+    ip: req.ip,
+    headers: req.headers
+  });
+  
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    req.logger.info('Response sent', {
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      contentLength: res.get('Content-Length') || '0'
+    });
+  });
+  
+  next();
+});
+
+// Set up EJS templating
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// DB Configuration
+const dbConfig = {
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "postgres",
   database: process.env.DB_NAME || "testdb",
   port: 5432
-});
+};
 
-// Load RDS root certificate (for ap-south-1 region)
-const rdsCa = process.env.RDS_CA_CERT || fs.readFileSync(path.resolve(__dirname, 'certs/rds-ca-2019-root.pem')).toString();
+logger.info('Database configuration', dbConfig);
+
+// Load RDS root certificate
+const rdsCa = process.env.RDS_CA_CERT || '';
 
 const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "postgres",
+  ...dbConfig,
   password: process.env.DB_PASS || "password",
-  database: process.env.DB_NAME || "testdb",
-  port: 5432,
-  ssl: {
+  ssl: rdsCa ? {
     rejectUnauthorized: true,
     ca: rdsCa
-  }
-});
-// Route for homepage
-app.get("/", (req, res) => {
-  res.send("<h1>This is the demo application</h1>");
+  } : false
 });
 
-// Enhanced DB status route
-app.get("/db-status", async (req, res) => {
+// Log DB connection events
+pool.on('connect', () => {
+  logger.debug('Database client connected');
+});
+
+pool.on('error', (err) => {
+  logger.error('Database connection error', { error: err.message, stack: err.stack });
+});
+
+// Route for homepage
+app.get("/", async (req, res) => {
   try {
-    console.log("Attempting database connection...");
-    const result = await pool.query("SELECT 1");
-    console.log("Database connection successful:", result.rows);
-    res.send("<h1>DB is connected to the app ✅</h1>");
+    const dbResult = await pool.query("SELECT version()");
+    const dbVersion = dbResult.rows[0].version;
+    
+    req.logger.info('Database version retrieved', { dbVersion });
+    
+    res.render('index', {
+      appName: "AWS ECS Demo",
+      dbHost: process.env.DB_HOST,
+      dbName: process.env.DB_NAME,
+      dbVersion: dbVersion,
+      region: process.env.AWS_REGION || "ap-south-1"
+    });
   } catch (err) {
-    console.error("DB Connection Error:", {
-      message: err.message,
+    req.logger.error('Database connection failed', { 
+      error: err.message, 
       stack: err.stack,
       code: err.code
     });
-    res.status(500).send(`
-      <h1>Database Connection Failed ❌</h1>
-      <p>Error: ${err.message}</p>
-      <p>Check application logs for details</p>
-    `);
+    res.render('index', {
+      appName: "AWS ECS Demo",
+      error: "Database Connection Failed: " + err.message
+    });
   }
+});
+
+// Route for DB status
+app.get("/db-status", async (req, res) => {
+  try {
+    const start = Date.now();
+    await pool.query("SELECT 1");
+    const latency = Date.now() - start;
+    
+    req.logger.debug('Database health check successful', { latency });
+    
+    res.json({
+      status: 'success',
+      message: 'DB is connected to the app ✅',
+      latency: latency,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME
+    });
+  } catch (err) {
+    req.logger.error('Database health check failed', { 
+      error: err.message, 
+      stack: err.stack,
+      code: err.code
+    });
+    res.status(500).json({
+      status: 'error',
+      message: 'Database Connection Failed ❌: ' + err.message
+    });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  req.logger.error('Application error', {
+    error: err.message,
+    stack: err.stack
+  });
+  
+  res.status(500).json({
+    error: 'Internal Server Error',
+    correlationId: req.logger.correlationId
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info(`Server running on port ${PORT}`);
 });

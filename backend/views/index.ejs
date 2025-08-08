@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= appName %></title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fab fa-aws"></i> <%= appName %></h1>
+      <p>Running on AWS ECS with Node.js + Nginx + PostgreSQL RDS</p>
+    </header>
+
+    <div class="dashboard">
+      <div class="card">
+        <h2><i class="fas fa-database"></i> Database Connection</h2>
+        <div class="status-container">
+          <div class="status-indicator" id="db-status-indicator"></div>
+          <div class="status-text" id="db-status-text">Checking status...</div>
+        </div>
+        
+        <div class="stats">
+          <div class="stat">
+            <label>Host:</label>
+            <span id="db-host"><%= dbHost %></span>
+          </div>
+          <div class="stat">
+            <label>Database:</label>
+            <span id="db-name"><%= dbName %></span>
+          </div>
+          <div class="stat">
+            <label>Region:</label>
+            <span><%= region %></span>
+          </div>
+          <div class="stat">
+            <label>Latency:</label>
+            <span id="db-latency">-- ms</span>
+          </div>
+          <div class="stat">
+            <label>Version:</label>
+            <span id="db-version"><%= dbVersion || 'N/A' %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i class="fas fa-server"></i> System Information</h2>
+        <div class="stats">
+          <div class="stat">
+            <label>Container ID:</label>
+            <span id="container-id">Loading...</span>
+          </div>
+          <div class="stat">
+            <label>Hostname:</label>
+            <span id="hostname">Loading...</span>
+          </div>
+          <div class="stat">
+            <label>Memory:</label>
+            <span id="memory-usage">Loading...</span>
+          </div>
+          <div class="stat">
+            <label>Uptime:</label>
+            <span id="uptime">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="refresh-btn" class="btn">
+        <i class="fas fa-sync-alt"></i> Refresh Status
+      </button>
+      <a href="/db-status" target="_blank" class="btn">
+        <i class="fas fa-external-link-alt"></i> View API
+      </a>
+    </div>
+
+    <footer>
+      <p>Deployed on AWS ECS | Container ID: <span id="footer-container-id">Loading...</span></p>
+    </footer>
+  </div>
+
+  <script src="/script.js"></script>
+</body>
+</html>

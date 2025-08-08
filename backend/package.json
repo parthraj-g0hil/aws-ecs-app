@@ -11,6 +11,8 @@
   "description": "",
   "dependencies": {
     "express": "^5.1.0",
+    "winston": "^3.12.0",
+    "winston-cloudwatch": "^4.0.0",
     "pg": "^8.16.3"
   }
 }
