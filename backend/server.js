@@ -13,12 +13,12 @@ const pool = new Pool({
   port: 5432
 });
 
-// Test route
+// ECS Health Check route (always returns 200 if app is alive)
 app.get("/", (req, res) => {
-  res.send("Hello from ECS App!");
+  res.status(200).send("OK");
 });
 
-// DB test route
+// DB test route (JSON)
 app.get("/db-test", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -28,19 +28,24 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-app.get('/db-status', async (req, res) => {
+// DB status route (HTML page)
+app.get("/db-status", async (req, res) => {
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
+    const result = await client.query("SELECT NOW()");
     client.release();
-    res.send(`<h1>Database Connected ✅</h1><p>Time: ${result.rows[0].now}</p>`);
+    res.send(`
+      <h1>Database Connected ✅</h1>
+      <p>Time: ${result.rows[0].now}</p>
+    `);
   } catch (err) {
     console.error(err);
     res.status(500).send("<h1>Database Connection Failed ❌</h1>");
   }
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
