@@ -19,13 +19,14 @@ app.get("/", (req, res) => {
 // Route for DB status
 app.get("/db-status", async (req, res) => {
   try {
-    const result = await pool.query("SELECT NOW()");
-    res.send(`<h1>DB is connected to the app ✅</h1><p>Time: ${result.rows[0].now}</p>`);
+    await pool.query("SELECT 1");
+    res.send("<h1>DB is connected to the app ✅</h1>");
   } catch (err) {
-    console.error(err);
+    console.error("DB Connection Error:", err);
     res.status(500).send("<h1>Database Connection Failed ❌</h1>");
   }
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
