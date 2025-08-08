@@ -1,16 +1,7 @@
 FROM 644951122123.dkr.ecr.ap-south-1.amazonaws.com/aws-ecs-app:baseimage
 
-# Install dependencies for EJS
-RUN apt-get update && apt-get install -y python3 make g++
-
 # Set working directory
 WORKDIR /app
-
-# Create directory for certificates
-RUN mkdir -p /app/certs
-
-# Copy RDS SSL certificate
-COPY certs/rds-ca-2019-root.pem /app/certs/
 
 # Copy package files and install only production deps
 COPY backend/package*.json ./
